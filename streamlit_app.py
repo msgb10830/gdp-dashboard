@@ -1,151 +1,81 @@
 import streamlit as st
-import pandas as pd
-import math
-from pathlib import Path
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
-)
+# 1. 웹 페이지 제목 및 안내 (영어 사용 금지 조건 반영)
+st.title("🧠 스마트 성격 유형 검사기")
+st.write("간단한 질문을 통해 당신의 성향을 알아보세요!")
+st.write("---")
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
-
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
-
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
-
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
-
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
-
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
-
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
-
-    return gdp_df
-
-gdp_df = get_gdp_data()
-
-# -----------------------------------------------------------------------------
-# Draw the actual page
-
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
-
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
-
-# Add some spacing
-''
-''
-
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
-
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
+# [자료형 및 변수 준비] 원본 코드의 리스트 구조 유지
+질문들 = [
+    "1. 주말에 집에 혼자 있는 것보다 밖에 나가 친구들을 만나는 것이 좋은가요?",
+    "2. 새로운 사람들과 대화할 때 먼저 말을 거는 편인가요?",
+    "3. 여행을 갈 때 시간 단위로 세부적인 계획을 세우는 편인가요?",
+    "4. 일을 할 때 마감 기한보다 미리 여유 있게 끝내는 편인가요?"
 ]
 
-st.header('GDP over time', divider='gray')
+답변들 = []
 
-''
+# 2. 반복문과 조건문 활용 (웹 화면 질문 생성 및 선택지 처리)
+# 스트림릿에서는 반복문 안에서 각 질문의 선택 상자(라디오 버튼)를 생성합니다.
+for i in range(len(질문들)):
+    # 사용자가 직관적으로 선택할 수 있도록 라디오 버튼 배치
+    선택 = st.radio(질문들[i], ["선택하세요", "그렇다", "아니다"], key=f"질문_{i}")
+    st.write("") # 간격 조절용 공백
+    
+    # 조건문을 통해 선택 결과에 따라 '답변들' 리스트에 1 또는 2를 추가
+    if 선택 == "그렇다":
+        답변들.append(1)
+    elif 선택 == "아니다":
+        답변들.append(2)
+    else:
+        답변들.append(0) # 아직 선택하지 않은 상태
 
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
+st.write("---")
 
-''
-''
+# 3. 데이터 분석 및 결과 출력 (버튼 클릭 시 실행)
+if st.button("검사 결과 확인하기"):
+    
+    # 예외 처리: 아직 답변하지 않은 질문이 있는지 확인
+    if 0 in 답변들:
+        st.error("⚠️ 아직 답변하지 않은 질문이 있습니다. 모든 질문에 답해주세요!")
+    else:
+        # 점수 변수 초기화
+        외향점수 = 0
+        계획점수 = 0
+        
+        # 1, 2번 질문은 외향형 판단 (원본 로직 유지)
+        if 답변들[0] == 1: 외향점수 += 1
+        if 답변들[1] == 1: 외향점수 += 1
 
+        # 3, 4번 질문은 계획형 판단 (원본 로직 유지)
+        if 답변들[2] == 1: 계획점수 += 1
+        if 답변들[3] == 1: 계획점수 += 1
+        
+        결과유형 = ""
 
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
+        # 외향형 vs 내향형 판단
+        if 외향점수 >= 1:
+            결과유형 += "외향형"
         else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
+            결과유형 += "내향형"
 
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+        # 계획형 vs 즉흥형 판단
+        if 계획점수 >= 1:
+            결과유형 += " 계획형"
+        else:
+            결과유형 += " 즉흥형"
+            
+        # 최종 결과 화면 출력
+        st.success(f"🎉 당신의 성격 유형은 **[{결과유형}]** 입니다!")
+        st.write("### 📌 나의 성향 상세 설명")
+        
+        # 유형별 상세 설명 출력 (조건문 활용)
+        if "외향형" in 결과유형:
+            st.info("✨ 사람들과 어울리며 에너지를 얻는 타입입니다.")
+        else:
+            st.info("✨ 혼자만의 시간을 가지며 에너지를 충전하는 타입입니다.")
+            
+        if "계획형" in 결과유형:
+            st.info("✨ 체계적이고 계획적인 환경에서 편안함을 느낍니다.")
+        else:
+            st.info("✨ 상황에 따라 유연하고 자유롭게 행동하는 것을 선호합니다.")
